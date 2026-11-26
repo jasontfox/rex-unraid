@@ -63,7 +63,7 @@ The script installs the seccomp profile and a template for the named instance un
 
 Open **Docker → Add Container**, select the template name printed by the script under **User templates**, review the settings, and click **Apply**. Docker Manager pulls the registry image and creates the container.
 
-For an instance named `rex-test`, the script writes `/boot/config/plugins/dockerMan/templates-user/my-rex-test.xml`. If setup stops early, check the reported step and the error printed just above it before rerunning.
+For an instance named `rex-test`, the script writes `/boot/config/plugins/dockerMan/templates-user/my-rex-test.xml`. Look for **REX SETUP COMPLETE** before applying the template. **REX SETUP FAILED** identifies the step where setup stopped. Check the error above that banner before rerunning.
 
 ### Prepare appdata manually
 
@@ -167,7 +167,9 @@ bash unraid/setup.sh --name rex-test --image "$preview_image" --podman \
   --workspace /mnt/user/projects/rex-test
 ```
 
-For Podman appdata, use `/mnt/<pool>/appdata/rex-test` because the test home also holds Podman's image layers. The script defaults to `/mnt/cache/appdata/rex-test` when `cache` is mounted. Workspace and key file paths can still use `/mnt/user`. The script creates a missing workspace, preserves ownership of an existing one, and seeds VFS configuration when the test home has none. Omit `--workspace` to clone into `~/src` or `--keys` to paste a key interactively. VFS uses extra disk space and requires no FUSE device. [Podman rootless storage](https://docs.podman.io/en/stable/markdown/podman.1.html#note-unsupported-file-systems-in-rootless-mode)
+For Podman appdata, use `/mnt/<pool>/appdata/rex-test`, with the pool name shown on Unraid’s **Main** tab. That path goes straight to the mounted pool filesystem, where the test home stores Podman’s image layers. `/mnt/user` combines files across the array and pools and still works for the workspace and public key file. Setup defaults to `/mnt/cache/appdata/rex-test` when `cache` is mounted. [Unraid pools](https://docs.unraid.net/unraid-os/using-unraid-to/manage-storage/cache-pools/) · [Unraid user shares](https://docs.unraid.net/unraid-os/using-unraid-to/manage-storage/shares/#file-system-structure)
+
+The script creates a missing workspace, preserves ownership of an existing one, and seeds VFS configuration when the test home has none. Omit `--workspace` to clone into `~/src` or `--keys` to paste a key interactively. VFS uses extra disk space and requires no FUSE device. [Podman rootless storage](https://docs.podman.io/en/stable/markdown/podman.1.html#note-unsupported-file-systems-in-rootless-mode)
 
 The generated Podman template includes the runtime directory and `systempaths=unconfined`, which allows nested Podman to mount `/proc`. Use the exception on the development instance with trusted code and mounts. The template keeps **Privileged** off and loads the supplied seccomp profile. [Docker security options](https://docs.docker.com/reference/cli/docker/container/run/#security-opt)
 

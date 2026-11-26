@@ -1,11 +1,38 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf '\n=== REX SETUP FAILED ===\nRun this script with Bash using bash unraid/setup.sh.\n' >&2
+    exit 1
+fi
+set -euo pipefail
 umask 077
 
 step='Check setup settings'
-trap 'status=$?; if (( BASH_SUBSHELL == 0 )); then
-    printf "Rex setup: %s failed (line %s, exit %s).\n" "$step" "$LINENO" "$status" >&2
-fi' ERR
+work=
+completed=0
+
+finish() {
+    local status=$1
+    if [[ -n $work ]]; then
+        if ! rm -f -- "$work/authorized_keys" "$work/template.xml" || ! rmdir -- "$work"; then
+            if (( status == 0 )); then
+                step='Remove temporary setup files'
+                status=1
+            fi
+        fi
+    fi
+    if (( status != 0 || ! completed )); then
+        (( status != 0 )) || status=1
+        printf '\n=== REX SETUP FAILED ===\n' >&2
+        printf 'Stopped at: %s (exit %s).\n' "$step" "$status" >&2
+        printf 'Review the output and rerun setup before applying the template.\n' >&2
+    fi
+    exit "$status"
+}
+
+trap 'finish "$?"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 usage() {
     cat <<'EOF'
@@ -25,12 +52,13 @@ Run without options for interactive setup. Run from an Unraid root shell.
   -h, --help        Show this help
 
 An empty key file allows interactive paste when no keys are already installed.
-Podman requires a direct pool appdata path such as /mnt/cache/appdata/rex-test.
+For Podman appdata, use /mnt/POOL/appdata/NAME, with the pool name shown on
+Unraid's Main tab. Workspace and key file paths can still use /mnt/user.
 EOF
 }
 
 die() {
-    printf 'Rex setup: %s\n' "$*" >&2
+    printf '\nERROR: %s\n' "$*" >&2
     exit 1
 }
 
@@ -112,12 +140,12 @@ workspace=
 podman=0
 interactive=0
 if (( $# == 0 )); then
-    [[ -t 0 ]] || { usage >&2; exit 1; }
+    [[ -t 0 ]] || die 'Run with a terminal for prompts or supply options. See --help.'
     interactive=1
 fi
 while (( $# )); do
     case $1 in
-        -h|--help) usage; exit 0 ;;
+        -h|--help) usage; completed=1; exit 0 ;;
         --podman) podman=1; shift; continue ;;
         --name|--image|--appdata|--keys|--bind-ip|--port|--workspace)
             (( $# >= 2 )) && [[ $2 != --* ]] || die "Missing value for $1."
@@ -164,6 +192,7 @@ if (( interactive )); then
             appdata=$resolved_appdata
             break
         fi
+        printf 'Try another appdata path. Setup is still running.\n' >&2
     done
     prompt bind_ip 'SSH bind IPv4 address' "$bind_ip"
     prompt port 'SSH host port' "$default_port"
@@ -190,7 +219,6 @@ mkdir -p -- /run/lock
 exec 9>"/run/lock/rex-unraid-$name.lock"
 flock -x 9
 work=$(mktemp -d)
-trap 'rm -f -- "$work/authorized_keys" "$work/template.xml"; rmdir -- "$work"' EXIT
 
 step='Prepare SSH public keys'
 authorized="$appdata/auth/authorized_keys"
@@ -285,16 +313,20 @@ mkdir -p -- "$template_dir"
 [[ ! -L $template_path && ( ! -e $template_path || -f $template_path ) ]] \
     || die "Expected a regular template file at $template_path."
 if [[ -s $template_path ]] && ! grep -Fxq -- "$template_marker" "$template_path"; then
+    printf '\n=== REX SETUP COMPLETE ===\n'
     printf 'Prepared %s. Kept the existing Unraid template at %s.\n' "$appdata" "$template_path"
     printf 'Review or change its settings in the Unraid Docker tab.\n'
+    completed=1
     exit 0
 fi
 install_file "$work/template.xml" "$template_path"
 [[ -s $template_path ]] || die "The installed template is missing or empty at $template_path."
 
+printf '\n=== REX SETUP COMPLETE ===\n'
 printf 'Prepared %s and installed %s.\n' "$appdata" "$template_path"
 printf 'In Docker → Add Container, select %s under User templates and click Apply.\n' "$name"
 printf 'Rex connection URL: ssh://rexuser@%s:%s/run/rex/server.sock\n' "$bind_ip" "$port"
 if [[ $bind_ip == 127.0.0.1 ]]; then
     printf 'The default SSH bind address allows connections from Unraid itself. Use --bind-ip for LAN access.\n'
 fi
+completed=1
