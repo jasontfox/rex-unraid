@@ -1,0 +1,23 @@
+AddressFamily inet
+Port 22
+HostKey /var/lib/rex-ssh/ssh_host_ed25519_key
+
+AllowUsers rexuser
+PermitRootLogin no
+AuthenticationMethods publickey
+AuthorizedKeysFile /run/rex-auth/authorized_keys
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+UsePAM yes
+StrictModes yes
+
+# OpenSSH shares local forwarding permissions for TCP and Unix sockets.
+AllowStreamLocalForwarding local
+AllowTcpForwarding local
+PermitOpen [/run/rex/server.sock]:*
+AllowAgentForwarding no
+X11Forwarding no
+PermitUserEnvironment no
+PermitUserRC no
+PrintMotd no
+SetEnv REX_AUTOSTART=0 REX_SERVER=/run/rex/server.sock
