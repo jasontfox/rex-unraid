@@ -157,7 +157,7 @@ When upgrading from the initial image, remove `--security-opt no-new-privileges=
 
 ## Test a PR image with rootless Podman
 
-On Unraid, use the setup script from the PR checkout. Set `preview_image` to the reference from the Actions summary and replace the example pool and LAN address with yours:
+On Unraid, use the setup script from the PR checkout. Set `preview_image` to the reference from the Actions summary and replace the example storage path and LAN address with yours:
 
 ```sh
 preview_image='ghcr.io/jasontfox/rex-unraid:REPLACE_WITH_PR_TAG'
@@ -167,7 +167,7 @@ bash unraid/setup.sh --name rex-test --image "$preview_image" --podman \
   --workspace /mnt/user/projects/rex-test
 ```
 
-For Podman appdata, use `/mnt/<pool>/appdata/rex-test`, with the pool name shown on Unraid’s **Main** tab. That path goes straight to the mounted pool filesystem, where the test home stores Podman’s image layers. `/mnt/user` combines files across the array and pools and still works for the workspace and public key file. Setup defaults to `/mnt/cache/appdata/rex-test` when `cache` is mounted. [Unraid pools](https://docs.unraid.net/unraid-os/using-unraid-to/manage-storage/cache-pools/) · [Unraid user shares](https://docs.unraid.net/unraid-os/using-unraid-to/manage-storage/shares/#file-system-structure)
+For Podman appdata, use a direct path under `/mnt` to a mounted pool or array data disk shown on Unraid’s **Main** tab. For an array-only system, use a path such as `/mnt/disk1/appdata/rex-test` on a data disk with space for image layers. Setup defaults to `/mnt/cache/appdata/rex-test` when `cache` is mounted. `/mnt/user` combines files across the array and pools and still works for the workspace and public key file. [Unraid pools](https://docs.unraid.net/unraid-os/using-unraid-to/manage-storage/cache-pools/) · [Unraid user shares](https://docs.unraid.net/unraid-os/using-unraid-to/manage-storage/shares/#file-system-structure)
 
 The script creates a missing workspace, preserves ownership of an existing one, and seeds VFS configuration when the test home has none. Omit `--workspace` to clone into `~/src` or `--keys` to paste a key interactively. VFS uses extra disk space and requires no FUSE device. [Podman rootless storage](https://docs.podman.io/en/stable/markdown/podman.1.html#note-unsupported-file-systems-in-rootless-mode)
 

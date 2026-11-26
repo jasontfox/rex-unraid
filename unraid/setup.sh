@@ -52,8 +52,9 @@ Run without options for interactive setup. Run from an Unraid root shell.
   -h, --help        Show this help
 
 An empty key file allows interactive paste when no keys are already installed.
-For Podman appdata, use /mnt/POOL/appdata/NAME, with the pool name shown on
-Unraid's Main tab. Workspace and key file paths can still use /mnt/user.
+For Podman appdata, use /mnt/POOL/appdata/NAME or /mnt/diskN/appdata/NAME.
+Choose a mounted pool or array data disk from Unraid's Main tab. Workspace
+and key file paths can still use /mnt/user.
 EOF
 }
 
@@ -81,10 +82,10 @@ storage_path() {
 
 appdata_path() {
     local path
-    [[ -n $1 ]] || die 'Enter a direct pool appdata path, such as /mnt/<pool>/appdata/rex-test.'
+    [[ -n $1 ]] || die 'Enter an appdata path on a mounted pool or array data disk, such as /mnt/cache/appdata/rex-test or /mnt/disk1/appdata/rex-test.'
     path=$(storage_path "$1") || return 1
     if (( podman )) && [[ $path == /mnt/user/* || $path == /mnt/user0/* ]]; then
-        die 'Use a direct pool path for Podman appdata, such as /mnt/cache/appdata/rex-test. Workspace and key file paths can still use /mnt/user.'
+        die 'Use a mounted pool or array data disk for Podman appdata, such as /mnt/cache/appdata/rex-test or /mnt/disk1/appdata/rex-test. Workspace and key file paths can still use /mnt/user.'
     fi
     printf '%s\n' "$path"
 }
@@ -187,7 +188,7 @@ if (( podman )); then
 fi
 if (( interactive )); then
     while true; do
-        prompt appdata 'Appdata path (direct pool path for Podman)' "$default_appdata"
+        prompt appdata 'Appdata path (mounted pool or data disk for Podman)' "$default_appdata"
         if resolved_appdata=$(appdata_path "$appdata"); then
             appdata=$resolved_appdata
             break
