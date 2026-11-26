@@ -167,7 +167,7 @@ bash unraid/setup.sh --name rex-test --image "$preview_image" --podman \
   --workspace /mnt/user/projects/rex-test
 ```
 
-The script creates a missing workspace and leaves the ownership of an existing one intact. Omit `--workspace` to clone into `~/src` instead. Omit `--keys` to paste a key interactively. The test home's direct pool mount stores Podman's image layers. The setup seeds VFS configuration when the test home has none. VFS uses extra disk space and requires no FUSE device. [Podman rootless storage](https://docs.podman.io/en/stable/markdown/podman.1.html#note-unsupported-file-systems-in-rootless-mode)
+For Podman appdata, use `/mnt/<pool>/appdata/rex-test` because the test home also holds Podman's image layers. The script defaults to `/mnt/cache/appdata/rex-test` when `cache` is mounted. Workspace and key file paths can still use `/mnt/user`. The script creates a missing workspace, preserves ownership of an existing one, and seeds VFS configuration when the test home has none. Omit `--workspace` to clone into `~/src` or `--keys` to paste a key interactively. VFS uses extra disk space and requires no FUSE device. [Podman rootless storage](https://docs.podman.io/en/stable/markdown/podman.1.html#note-unsupported-file-systems-in-rootless-mode)
 
 The generated Podman template includes the runtime directory and `systempaths=unconfined`, which allows nested Podman to mount `/proc`. Use the exception on the development instance with trusted code and mounts. The template keeps **Privileged** off and loads the supplied seccomp profile. [Docker security options](https://docs.docker.com/reference/cli/docker/container/run/#security-opt)
 

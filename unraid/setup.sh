@@ -15,7 +15,8 @@ Run without options for interactive setup. Run from an Unraid root shell.
 
   --name NAME       Container name (default rex)
   --image REF       Image tag or digest for the template
-  --appdata PATH    Appdata directory (default /mnt/user/appdata/NAME)
+  --appdata PATH    Appdata directory (default /mnt/user/appdata/NAME, or
+                    /mnt/cache/appdata/NAME with --podman if cache is mounted)
   --keys FILE       Import one OpenSSH public key per line
   --bind-ip IPv4    Address for SSH (default 127.0.0.1)
   --port PORT       Host SSH port (default 2222, or 2223 with --podman)
@@ -47,6 +48,16 @@ storage_path() {
     [[ $path == /mnt/*/* ]] || die "Path resolves outside Unraid storage: $1"
     mount_name=${path#/mnt/}
     mountpoint -q -- "/mnt/${mount_name%%/*}" || die "Start the array or mount /mnt/${mount_name%%/*} first."
+    printf '%s\n' "$path"
+}
+
+appdata_path() {
+    local path
+    [[ -n $1 ]] || die 'Enter a direct pool appdata path, such as /mnt/<pool>/appdata/rex-test.'
+    path=$(storage_path "$1") || return 1
+    if (( podman )) && [[ $path == /mnt/user/* || $path == /mnt/user0/* ]]; then
+        die 'Use a direct pool path for Podman appdata, such as /mnt/cache/appdata/rex-test. Workspace and key file paths can still use /mnt/user.'
+    fi
     printf '%s\n' "$path"
 }
 
@@ -129,28 +140,39 @@ if (( interactive )); then
     prompt image 'Image tag or digest' ''
     prompt nested 'Enable nested Podman (y/N)' 'n'
     case $nested in
-        y|Y|yes|YES) podman=1; port=2223 ;;
+        y|Y|yes|YES) podman=1 ;;
         n|N|no|NO) ;;
         *) die 'Answer y or n for Podman.' ;;
     esac
-    default_appdata="/mnt/user/appdata/$name"
-    if (( podman )); then
-        default_appdata=
-    fi
-    prompt appdata 'Appdata path (direct pool path for Podman)' "$default_appdata"
-    prompt bind_ip 'SSH bind IPv4 address' "$bind_ip"
-    prompt port 'SSH host port' "${port:-2222}"
-    prompt workspace 'Writable workspace path (optional)' ''
-    prompt keys 'Public key file path (optional)' ''
 fi
 
 [[ $name =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]] || die 'Enter a valid Docker container name.'
 [[ $image =~ ^[a-zA-Z0-9][a-zA-Z0-9_.:/@-]*$ ]] || die 'Specify a Docker image reference with --image.'
+default_appdata="/mnt/user/appdata/$name"
+default_port=2222
 if (( podman )); then
-    port=${port:-2223}
-else
-    port=${port:-2222}
+    default_port=2223
+    default_appdata=
+    if mountpoint -q -- /mnt/cache; then
+        default_appdata="/mnt/cache/appdata/$name"
+    fi
 fi
+if (( interactive )); then
+    while true; do
+        prompt appdata 'Appdata path (direct pool path for Podman)' "$default_appdata"
+        if resolved_appdata=$(appdata_path "$appdata"); then
+            appdata=$resolved_appdata
+            break
+        fi
+    done
+    prompt bind_ip 'SSH bind IPv4 address' "$bind_ip"
+    prompt port 'SSH host port' "$default_port"
+    prompt workspace 'Writable workspace path (optional)' ''
+    prompt keys 'Public key file path (optional)' ''
+else
+    appdata=$(appdata_path "${appdata:-$default_appdata}")
+fi
+port=${port:-$default_port}
 [[ $port =~ ^[1-9][0-9]{0,4}$ ]] && (( port <= 65535 )) || die 'Use a port from 1 to 65535.'
 [[ $bind_ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ && $bind_ip != 0.0.0.0 ]] \
     || die 'Use a specific IPv4 address for SSH.'
@@ -158,14 +180,6 @@ IFS=. read -r -a octets <<< "$bind_ip"
 for octet in "${octets[@]}"; do
     [[ $octet == 0 || $octet != 0* ]] && (( octet <= 255 )) || die 'Invalid SSH IPv4 address.'
 done
-if (( podman )); then
-    [[ -n $appdata ]] || die 'Specify a direct pool appdata path for Podman.'
-fi
-appdata=$(storage_path "${appdata:-/mnt/user/appdata/$name}")
-if (( podman )); then
-    [[ $appdata != /mnt/user/* && $appdata != /mnt/user0/* ]] \
-        || die 'Use the pool path for Podman appdata, such as /mnt/cache/appdata/rex-test.'
-fi
 if [[ -n $workspace ]]; then
     workspace=$(storage_path "$workspace")
 fi
