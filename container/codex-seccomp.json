@@ -562,6 +562,7 @@
         "move_mount",
         "open_tree",
         "pivot_root",
+        "sethostname",
         "setns",
         "umount",
         "umount2",

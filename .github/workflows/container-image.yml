@@ -57,7 +57,7 @@ jobs:
                 docker.io/library/alpine:3.22 sh -ec "echo rootless > /work/probe.txt"
               test "$(cat /workspace/probe.txt)" = rootless
               cd /src
-              podman --storage-driver=vfs build --network=host --platform linux/amd64 \
+              podman --storage-driver=vfs build --format=docker --network=host --platform linux/amd64 \
                 --tag localhost/rex-unraid:dev .
               podman --storage-driver=vfs run --rm --cgroups=disabled --network=none \
                 --entrypoint /bin/sh localhost/rex-unraid:dev -ec "rex version; codex --version"
