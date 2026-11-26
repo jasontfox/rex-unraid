@@ -10,11 +10,12 @@ FROM debian:trixie-slim
 RUN test "$(dpkg --print-architecture)" = amd64 \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential ca-certificates curl file git ncurses-bin openssh-server \
-        procps python3 sudo tini util-linux zsh \
+        build-essential ca-certificates crun curl file git ncurses-bin openssh-server \
+        podman procps python3 slirp4netns sudo tini uidmap util-linux zsh \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/ssh/ssh_host_* \
     && useradd --uid 1000 --gid users --home-dir /home/rexuser --shell /bin/zsh rexuser \
+    && getsubids rexuser && getsubids -g rexuser \
     && install -d -m 0700 -o rexuser -g users /home/rexuser \
     && install -d -m 0700 /var/lib/rex-ssh \
     && install -d -m 0755 /home/linuxbrew /run/rex-auth /workspace /opt/codex

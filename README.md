@@ -32,19 +32,18 @@ sha256sum -c "$archive.sha256" && docker image load -i "$archive"
 
 ### Build and publish with GitHub Actions
 
-Open pull requests against `main` and wait for the **Build image** check before merging. The [Container image workflow](.github/workflows/container-image.yml) builds the `linux/amd64` image when a PR to `main` opens, changes, or reopens, on every push to `main`, and on manual runs. On a push to `main`, the workflow publishes only when GitHub identifies the built commit as the exact result of a merged PR targeting `main`.
+Open pull requests against `main` and wait for the **Build image** check before merging. The [Container image workflow](.github/workflows/container-image.yml) builds the `linux/amd64` image when a PR to `main` opens, changes, or reopens, on every push to `main`, and on manual runs. PRs from a branch in this repository publish a preview tagged `pr-<number>-<12-character-merge-sha>` after the build and Podman smoke test. Fork PRs run the checks without publishing. The workflow publishes SemVer tags only for the result of a merged PR targeting `main`.
 
 Configure `main` branch protection to require a pull request and the **Build image** check, including for administrators. Private repositories need a GitHub plan with branch protection. [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
 
 Image versions use SemVer for this container project. The [VERSION](VERSION) file starts at `0.1.0`. Each first-parent commit after that version change increments the patch number, so a squash merge or merge commit advances it by one. A rebase merge or an unpublished commit can leave gaps. To start a new minor or major release, change `VERSION` in the PR to a version above the current one, such as `0.2.0`. Each published image uses its SemVer tag and includes the Git commit SHA in its OCI metadata. The run summary shows the image reference.
 
-The workflow uses GitHub’s temporary Actions token to publish to `ghcr.io/jasontfox/rex-unraid`. GitHub defaults new container packages to private. Keep this package private. [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+The workflow uses GitHub’s temporary Actions token to publish to the public `ghcr.io/jasontfox/rex-unraid` package. The repository needs Write permission under **Manage Actions access** in the package settings. [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
 
-To use a published build, copy its image reference from the run summary, pull it in the Unraid terminal, and paste the same reference into the template’s **Repository** field. Use a GitHub personal access token **(classic)** with `read:packages` when Docker asks for the password. [GitHub Container Registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry)
+To use a published build, paste its image reference from the run summary into Unraid’s **Repository** field. Unraid can pull the image anonymously when you apply the template. To pull it from the terminal:
 
 ```sh
 image='ghcr.io/jasontfox/rex-unraid:0.1.0'
-docker login ghcr.io --username jasontfox
 docker pull "$image"
 ```
 
@@ -137,6 +136,39 @@ Install `container/codex-seccomp.json` at `/mnt/user/appdata/rex/codex-seccomp.j
 Keep **Privileged** off. From a Rex terminal, run `codex sandbox -- /bin/true` to confirm the profile works on your host before relying on Codex for tool calls.
 
 When upgrading from the initial image, remove `--security-opt no-new-privileges=true` from the container’s Extra Parameters. That flag prevents the setuid transition sudo needs. Any authorized SSH key holder can use sudo to become root inside this container.
+
+## Test a PR image with rootless Podman
+
+Use **Docker → Add Container** with the local template and name the second container `rex-test`. Set **Repository** to the `ghcr.io/jasontfox/rex-unraid:pr-…` reference in the PR's Actions summary. Keep Bridge mode and use `<UNRAID_LAN_IP>:2223:22/tcp` for the SSH publish rule. [Unraid container settings](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/)
+
+Follow [the appdata setup](#prepare-appdata-on-unraid) using `/mnt/<pool>/appdata/rex-test` as `appdata`, where `<pool>` is the name of your local pool, often `cache`. Replace the host path for each of the four appdata mounts with the corresponding path under `rex-test`. The `home` directory at `/home/rexuser` holds user settings and Podman's image store. A direct pool path gives Podman a local filesystem for its image layers. Keep this store outside a network share. You can reuse the same client public keys in the test `auth` directory. [Podman rootless storage](https://docs.podman.io/en/stable/markdown/podman.1.html#note-unsupported-file-systems-in-rootless-mode)
+
+For source code, map a separate writable project folder to `/workspace` or clone into `~/src` on the test home mount. Give UID `1000` or GID `100` write access to the folder. Nested containers see paths inside `rex-test`, so a Podman bind mount uses `/workspace` or a path under `$HOME` as its source.
+
+Point the seccomp flag at the profile from the PR, keep the capability flags in the template, and append this to **Extra Parameters** for the rootless runtime directory:
+
+```text
+--tmpfs /run/user/1000:uid=1000,gid=100,mode=0700 --env XDG_RUNTIME_DIR=/run/user/1000
+```
+
+Connect Rex to `ssh://rexuser@<UNRAID_LAN_IP>:2223/run/rex/server.sock` and run the following as `rexuser`. On the fresh test home, configure VFS storage and the cgroupfs manager. VFS requires no FUSE device and uses extra disk space for image layers.
+
+```sh
+mkdir -p "$HOME/.config/containers"
+printf '[storage]\ndriver = "vfs"\n' > "$HOME/.config/containers/storage.conf"
+printf '[engine]\ncgroup_manager = "cgroupfs"\n' > "$HOME/.config/containers/containers.conf"
+podman info --format '{{.Host.Security.Rootless}} {{.Store.GraphRoot}}'
+
+# Use a directory under $HOME here if you did not map /workspace.
+workdir=/workspace/podman-smoke
+mkdir -p "$workdir"
+podman run --rm --cgroups=disabled --network=none \
+  --volume "$workdir:/work:rw" docker.io/library/alpine:3.22 \
+  sh -ec 'id; printf "Podman can write here\n" > /work/probe.txt'
+cat "$workdir/probe.txt"
+```
+
+From a checkout inside the test instance, try `podman build --platform linux/amd64 -t localhost/rex-unraid:dev .`. Run the built image with `podman run --rm --cgroups=disabled --network=none --entrypoint /bin/sh localhost/rex-unraid:dev -ec 'rex version; codex --version'`. Boot the actual PR image in Unraid for tests of SSH, persistent mounts, and Rex session behavior.
 
 ## Connect and check the deployment
 
