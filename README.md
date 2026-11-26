@@ -49,6 +49,22 @@ docker pull "$image"
 
 ## Prepare appdata on Unraid
 
+### Run the setup script
+
+Copy the repository checkout to Unraid, keeping `unraid/` and `container/` together. With the array started, open the Unraid terminal as root, change into the checkout, and run:
+
+```sh
+bash unraid/setup.sh
+```
+
+The prompts ask for the image, container name, appdata path, SSH address and port, workspace, and a public key file. You can pass the same settings as options using `bash unraid/setup.sh --help`. If neither the import file nor the installed `authorized_keys` has a key, the script prompts you to paste the contents of a client's `.pub` file. Use `--keys FILE` for unattended setup.
+
+The script installs the seccomp profile and a separate setup template under `/boot/config/plugins/dockerMan/templates-user`. Reruns preserve existing SSH keys and appdata, and import each key at most once. The setup template has a separate filename from the template Unraid saves when you apply a container. Use the LAN IPv4 address for access from other devices. The default `127.0.0.1` keeps SSH on Unraid itself. [Unraid user template storage](https://docs.unraid.net/community-applications/)
+
+Open **Docker → Add Container**, select the template name printed by the script under **User templates**, review the settings, and click **Apply**. Docker Manager pulls the registry image and creates the container.
+
+### Prepare appdata manually
+
 Run in the Unraid terminal. Set the source file to a text file with one SSH **public** key per line. On a client with app-managed SSH keys, export its public key and add it to this list.
 
 ```sh
@@ -67,7 +83,7 @@ The container initializes its SSH host key and Rex machine ID in `appdata/rex/ss
 
 ## Configure Unraid Docker Manager
 
-### Install with the local template
+### Install the local template manually
 
 The [Unraid template](unraid/my-rex-unraid.xml) fills in the image tag, Bridge network, appdata paths, and Codex sandbox options for a new installation. For an existing `rex` container, use **Docker → Edit** and follow the [upgrade instructions](#update-and-roll-back).
 
@@ -139,25 +155,23 @@ When upgrading from the initial image, remove `--security-opt no-new-privileges=
 
 ## Test a PR image with rootless Podman
 
-Use **Docker → Add Container** with the local template and name the second container `rex-test`. Set **Repository** to the `ghcr.io/jasontfox/rex-unraid:pr-…` reference in the PR's Actions summary. Keep Bridge mode and use `<UNRAID_LAN_IP>:2223:22/tcp` for the SSH publish rule. [Unraid container settings](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/)
-
-Follow [the appdata setup](#prepare-appdata-on-unraid) using `/mnt/<pool>/appdata/rex-test` as `appdata`, where `<pool>` is the name of your local pool, often `cache`. Replace the host path for each of the four appdata mounts with the corresponding path under `rex-test`. The `home` directory at `/home/rexuser` holds user settings and Podman's image store. A direct pool path gives Podman a local filesystem for its image layers. Keep this store outside a network share. You can reuse the same client public keys in the test `auth` directory. [Podman rootless storage](https://docs.podman.io/en/stable/markdown/podman.1.html#note-unsupported-file-systems-in-rootless-mode)
-
-For source code, map a separate writable project folder to `/workspace` or clone into `~/src` on the test home mount. Give UID `1000` or GID `100` write access to the folder. Nested containers see paths inside `rex-test`, so a Podman bind mount uses `/workspace` or a path under `$HOME` as its source.
-
-Point the seccomp flag at the profile from the PR, keep the capability flags in the template, and append these options to **Extra Parameters** on `rex-test`:
-
-```text
---security-opt systempaths=unconfined --tmpfs /run/user/1000:uid=1000,gid=100,mode=0700 --env XDG_RUNTIME_DIR=/run/user/1000
-```
-
-The system-path exception lets Podman mount a new `/proc` for its nested containers. It removes Docker's default masked and read-only paths for this test container, so use it only on the development instance with trusted code and mounts. Keep the seccomp profile and leave **Privileged** off. [Docker security options](https://docs.docker.com/reference/cli/docker/container/run/#security-opt)
-
-Connect Rex to `ssh://rexuser@<UNRAID_LAN_IP>:2223/run/rex/server.sock` and run the following as `rexuser`. On the fresh test home, configure VFS storage. VFS requires no FUSE device and uses extra disk space for image layers.
+On Unraid, use the setup script from the PR checkout. Set `preview_image` to the reference from the Actions summary and replace the example pool and LAN address with yours:
 
 ```sh
-mkdir -p "$HOME/.config/containers"
-printf '[storage]\ndriver = "vfs"\n' > "$HOME/.config/containers/storage.conf"
+preview_image='ghcr.io/jasontfox/rex-unraid:REPLACE_WITH_PR_TAG'
+bash unraid/setup.sh --name rex-test --image "$preview_image" --podman \
+  --appdata /mnt/cache/appdata/rex-test --bind-ip 192.168.1.10 --port 2223 \
+  --keys /mnt/user/appdata/rex/auth/authorized_keys \
+  --workspace /mnt/user/projects/rex-test
+```
+
+The script creates a missing workspace and leaves the ownership of an existing one intact. Omit `--workspace` to clone into `~/src` instead. Omit `--keys` to paste a key interactively. The test home's direct pool mount stores Podman's image layers. The setup seeds VFS configuration when the test home has none. VFS uses extra disk space and requires no FUSE device. [Podman rootless storage](https://docs.podman.io/en/stable/markdown/podman.1.html#note-unsupported-file-systems-in-rootless-mode)
+
+The generated Podman template includes the runtime directory and `systempaths=unconfined`, which allows nested Podman to mount `/proc`. Use the exception on the development instance with trusted code and mounts. The template keeps **Privileged** off and loads the supplied seccomp profile. [Docker security options](https://docs.docker.com/reference/cli/docker/container/run/#security-opt)
+
+In **Docker → Add Container**, select the setup template printed by the script and click **Apply**. Connect Rex to `ssh://rexuser@<UNRAID_LAN_IP>:2223/run/rex/server.sock` and run the following as `rexuser`:
+
+```sh
 podman info --format '{{.Host.Security.Rootless}} {{.Store.GraphRoot}}'
 
 # Use a directory under $HOME here if you did not map /workspace.
