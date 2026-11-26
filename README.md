@@ -63,6 +63,8 @@ The script installs the seccomp profile and a template for the named instance un
 
 Open **Docker → Add Container**, select the template name printed by the script under **User templates**, review the settings, and click **Apply**. Docker Manager pulls the registry image and creates the container.
 
+For an instance named `rex-test`, the script writes `/boot/config/plugins/dockerMan/templates-user/my-rex-test.xml`. If setup stops early, check the reported step and the error printed just above it before rerunning.
+
 ### Prepare appdata manually
 
 Run in the Unraid terminal. Set the source file to a text file with one SSH **public** key per line. On a client with app-managed SSH keys, export its public key and add it to this list.

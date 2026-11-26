@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 umask 077
+
+step='Check setup settings'
+trap 'status=$?; if (( BASH_SUBSHELL == 0 )); then
+    printf "Rex setup: %s failed (line %s, exit %s).\n" "$step" "$LINENO" "$status" >&2
+fi' ERR
 
 usage() {
     cat <<'EOF'
@@ -166,11 +171,14 @@ if [[ -n $workspace ]]; then
 fi
 [[ -z $keys || ( -f $keys && -r $keys ) ]] || die "Could not read public keys from $keys."
 
+step='Acquire the setup lock'
+mkdir -p -- /run/lock
 exec 9>"/run/lock/rex-unraid-$name.lock"
 flock -x 9
 work=$(mktemp -d)
 trap 'rm -f -- "$work/authorized_keys" "$work/template.xml"; rmdir -- "$work"' EXIT
 
+step='Prepare SSH public keys'
 authorized="$appdata/auth/authorized_keys"
 for path in "$appdata/home" "$appdata/brew" "$appdata/ssh" "$appdata/auth" "$authorized"; do
     [[ ! -L $path ]] || die "Use a real file or directory at $path."
@@ -200,6 +208,7 @@ if (( ${#installed_keys[@]} == 0 )); then
     (( ${#installed_keys[@]} > 0 )) || die 'No public key was entered.'
 fi
 
+step="Prepare appdata at $appdata"
 install -d -m 0750 -o 0 -g 0 -- "$appdata"
 install -d -m 0700 -o 1000 -g 100 -- "$appdata/home"
 install -d -m 0750 -o 1000 -g 100 -- "$appdata/brew"
@@ -209,11 +218,13 @@ install_file "$work/authorized_keys" "$authorized" 0644
 install_file "$profile" "$appdata/codex-seccomp.json" 0644
 
 if [[ -n $workspace && ! -d $workspace ]]; then
+    step="Create the workspace at $workspace"
     install -d -m 0750 -o 1000 -g 100 -- "$workspace"
 fi
 
 podman_args=
 if (( podman )); then
+    step="Prepare Podman storage at $appdata/home"
     podman_args=' --security-opt systempaths=unconfined --tmpfs /run/user/1000:uid=1000,gid=100,mode=0700 --env XDG_RUNTIME_DIR=/run/user/1000'
     # Write only as rexuser, even if an existing home contains symlinks.
     (
@@ -229,6 +240,7 @@ if (( podman )); then
     )
 fi
 
+step='Render the Docker template'
 printf -v seccomp_arg '%q' "seccomp=$appdata/codex-seccomp.json"
 appdata_xml=$(xml_replacement "$appdata")
 image_xml=$(xml_replacement "$image")
@@ -254,15 +266,17 @@ fi
 
 template_dir=/boot/config/plugins/dockerMan/templates-user
 template_path="$template_dir/my-$name.xml"
+step="Install the Docker template at $template_path"
 mkdir -p -- "$template_dir"
-if [[ -e $template_path || -L $template_path ]]; then
-    if [[ -L $template_path || ! -f $template_path ]] || ! grep -Fxq -- "$template_marker" "$template_path"; then
-        printf 'Prepared %s. Kept the existing Unraid template at %s.\n' "$appdata" "$template_path"
-        printf 'Review or change its settings in the Unraid Docker tab.\n'
-        exit 0
-    fi
+[[ ! -L $template_path && ( ! -e $template_path || -f $template_path ) ]] \
+    || die "Expected a regular template file at $template_path."
+if [[ -s $template_path ]] && ! grep -Fxq -- "$template_marker" "$template_path"; then
+    printf 'Prepared %s. Kept the existing Unraid template at %s.\n' "$appdata" "$template_path"
+    printf 'Review or change its settings in the Unraid Docker tab.\n'
+    exit 0
 fi
 install_file "$work/template.xml" "$template_path"
+[[ -s $template_path ]] || die "The installed template is missing or empty at $template_path."
 
 printf 'Prepared %s and installed %s.\n' "$appdata" "$template_path"
 printf 'In Docker → Add Container, select %s under User templates and click Apply.\n' "$name"
