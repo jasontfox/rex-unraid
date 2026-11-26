@@ -3,3 +3,6 @@
 !container/
 !container/supervise.py
 !container/sshd_config
+!container/init-homebrew
+!container/rex-sudoers
+!container/zshenv

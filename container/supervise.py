@@ -14,6 +14,7 @@ import uuid
 
 IDENTITY = Path("/var/lib/rex-ssh")
 AUTH = Path("/run/rex-auth")
+BREW_HOME = Path("/home/linuxbrew")
 SOCKET = Path("/run/rex/server.sock")
 SSHD = ("/usr/sbin/sshd", "-f", "/etc/ssh/sshd_config.rex")
 STOP_GRACE_SECONDS = 20
@@ -136,9 +137,10 @@ def main():
     os.umask(0o077)
     account = pwd.getpwnam("rexuser")
     home = Path(account.pw_dir)
-    for path in (home, IDENTITY, AUTH):
+    for path in (home, IDENTITY, AUTH, BREW_HOME):
         require_mount(path)
     require_ownership(home, account.pw_uid, 0o022, directory=True)
+    require_ownership(BREW_HOME, account.pw_uid, 0o022, directory=True)
     require_ownership(IDENTITY, 0, 0o077, directory=True)
     require_ownership(AUTH, 0, 0o022, directory=True)
     authorized_keys = AUTH / "authorized_keys"
@@ -152,6 +154,14 @@ def main():
         except BlockingIOError as error:
             raise RuntimeError(f"Another container is using {IDENTITY}.") from error
 
+        subprocess.run(
+            ("/usr/local/lib/rex-unraid/init-homebrew",),
+            user=account.pw_uid,
+            group=account.pw_gid,
+            extra_groups=[],
+            umask=0o022,
+            check=True,
+        )
         prepare_identity()
         Path("/run/sshd").mkdir(mode=0o755, exist_ok=True)
         SOCKET.parent.mkdir(mode=0o700, exist_ok=True)

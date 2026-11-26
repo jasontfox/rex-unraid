@@ -10,13 +10,14 @@ FROM debian:trixie-slim
 RUN test "$(dpkg --print-architecture)" = amd64 \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        ca-certificates curl git ncurses-bin openssh-server python3 tini util-linux \
+        build-essential ca-certificates curl file git ncurses-bin openssh-server \
+        procps python3 sudo tini util-linux zsh \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/ssh/ssh_host_* \
-    && useradd --uid 1000 --gid users --home-dir /home/rexuser --shell /bin/bash rexuser \
+    && useradd --uid 1000 --gid users --home-dir /home/rexuser --shell /bin/zsh rexuser \
     && install -d -m 0700 -o rexuser -g users /home/rexuser \
     && install -d -m 0700 /var/lib/rex-ssh \
-    && install -d -m 0755 /run/rex-auth /workspace /opt/codex
+    && install -d -m 0755 /home/linuxbrew /run/rex-auth /workspace /opt/codex
 
 RUN --mount=type=bind,from=releases,source=/rex.tar.gz,target=/tmp/rex.tar.gz \
     --mount=type=bind,from=releases,source=/codex.tar.gz,target=/tmp/codex.tar.gz \
@@ -35,10 +36,27 @@ RUN --mount=type=bind,from=releases,source=/rex.tar.gz,target=/tmp/rex.tar.gz \
     test "$(codex --version)" = 'codex-cli 0.172.0'; \
     rm -rf "$staging"
 
+RUN set -eu; \
+    seed=/opt/homebrew-seed; \
+    install -d -m 0755 "$seed/bin" /usr/local/lib/rex-unraid; \
+    git -c advice.detachedHead=false clone --quiet --depth=1 --branch 7.0.16 \
+        https://github.com/Homebrew/brew.git "$seed/Homebrew"; \
+    test "$(git -C "$seed/Homebrew" rev-parse HEAD)" = 7ef183d10e7d6e5620d7124b744b1dfbf69fc108; \
+    git -C "$seed/Homebrew" switch --quiet -c stable; \
+    git -C "$seed/Homebrew" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'; \
+    git -C "$seed/Homebrew" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main; \
+    ln -s ../Homebrew/bin/brew "$seed/bin/brew"
+
 COPY --chmod=0644 container/sshd_config /etc/ssh/sshd_config.rex
 COPY --chmod=0644 container/supervise.py /usr/local/lib/rex-unraid/supervise.py
+COPY --chmod=0755 container/init-homebrew /usr/local/lib/rex-unraid/init-homebrew
+COPY --chmod=0440 container/rex-sudoers /etc/sudoers.d/rexuser
+RUN --mount=type=bind,source=container/zshenv,target=/tmp/rex-zshenv \
+    cat /tmp/rex-zshenv >> /etc/zsh/zshenv \
+    && visudo -c
 
-ENV LANG=C.UTF-8 REX_AUTOSTART=0 REX_SERVER=/run/rex/server.sock
+ENV LANG=C.UTF-8 SHELL=/bin/zsh REX_AUTOSTART=0 REX_SERVER=/run/rex/server.sock
+SHELL ["/bin/zsh", "-c"]
 EXPOSE 22/tcp
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=15s --timeout=5s --start-period=15s \

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Container version="2">
+  <Name>rex</Name>
+  <Repository>rex-unraid:0.1.0-preview.24-codex.0.172.0-r2</Repository>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <TailscaleEnabled>false</TailscaleEnabled>
+  <Overview>Personal Rex server with Codex CLI, zsh, sudo, and persistent Homebrew. Load the local image, prepare appdata and authorized keys, and install the Codex seccomp profile before applying. For LAN access, replace 127.0.0.1 in Extra Parameters with the Unraid LAN IPv4 address.</Overview>
+  <ExtraParams>--publish 127.0.0.1:2222:22/tcp --stop-timeout 25 --security-opt seccomp=/mnt/user/appdata/rex/codex-seccomp.json --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add KILL --cap-add NET_BIND_SERVICE --cap-add SETGID --cap-add SETUID --cap-add SYS_CHROOT --cap-add AUDIT_WRITE</ExtraParams>
+  <Config Name="Rex home" Target="/home/rexuser" Default="/mnt/user/appdata/rex/home" Mode="rw" Description="Persistent Rex state, zsh configuration, and Codex login. Prepare this directory for UID 1000 and GID 100." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/rex/home</Config>
+  <Config Name="Homebrew" Target="/home/linuxbrew" Default="/mnt/user/appdata/rex/brew" Mode="rw" Description="Persistent Homebrew installation and packages. Prepare this directory for UID 1000 and GID 100." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/rex/brew</Config>
+  <Config Name="SSH host identity" Target="/var/lib/rex-ssh" Default="/mnt/user/appdata/rex/ssh" Mode="rw" Description="Root-owned directory for the SSH host key and Rex machine ID." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/rex/ssh</Config>
+  <Config Name="SSH authorized keys" Target="/run/rex-auth" Default="/mnt/user/appdata/rex/auth" Mode="ro" Description="Root-owned directory containing authorized_keys with one client public key per line." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/rex/auth</Config>
+  <Config Name="Workspace" Target="/workspace" Default="" Mode="ro" Description="Optional Unraid share or subfolder. Choose read/write if Rex and Codex should edit files there." Type="Path" Display="always" Required="false" Mask="false"/>
+</Container>

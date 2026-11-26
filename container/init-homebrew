@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+prefix=/home/linuxbrew/.linuxbrew
+
+if [ -x "$prefix/bin/brew" ]; then
+    exit 0
+fi
+if [ -e "$prefix" ] || [ -L "$prefix" ]; then
+    printf 'Homebrew prefix %s is present but bin/brew is unavailable.\n' "$prefix" >&2
+    exit 1
+fi
+
+staging=$(mktemp -d /home/linuxbrew/.brew-init.XXXXXXXX)
+trap 'rm -rf -- "$staging"' EXIT
+cp -a --no-preserve=ownership /opt/homebrew-seed/. "$staging/"
+mv -Tn -- "$staging" "$prefix"
+test -x "$prefix/bin/brew"
