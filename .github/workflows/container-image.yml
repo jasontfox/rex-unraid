@@ -1,0 +1,70 @@
+name: Container image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - .gitattributes
+      - container/**
+      - .github/workflows/container-image.yml
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - .gitattributes
+      - container/**
+      - .github/workflows/container-image.yml
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish this build to GitHub Container Registry
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the Unraid image
+        run: docker build --platform linux/amd64 --tag rex-unraid:ci .
+
+  publish:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' && inputs.publish
+          && github.ref == 'refs/heads/main' && github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the Unraid image
+        id: image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:sha-${GITHUB_SHA}"
+          docker build --platform linux/amd64 \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "$image" .
+          printf 'ref=%s\n' "$image" >> "$GITHUB_OUTPUT"
+      - name: Publish to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ${{ steps.image.outputs.ref }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE"
+          printf 'Published `%s`\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
