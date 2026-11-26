@@ -169,7 +169,7 @@ podman run --rm --cgroups=disabled --network=none \
 cat "$workdir/probe.txt"
 ```
 
-From a checkout inside the test instance, try `podman build --format=docker --network=host --platform linux/amd64 -t localhost/rex-unraid:dev .`. Docker format preserves the Dockerfile's image health check. For this trusted Dockerfile, `--network=host` shares the outer `rex-test` container's Bridge network namespace so build steps can download dependencies. Run the built image with `podman run --rm --cgroups=disabled --network=none --entrypoint /bin/sh localhost/rex-unraid:dev -ec 'rex version; codex --version'`. Boot the actual PR image in Unraid for tests of SSH, persistent mounts, and Rex session behavior.
+From a checkout inside the test instance, run `podman build --layers=false --format=docker --network=host --platform linux/amd64 -t localhost/rex-unraid:dev .`. Disabling the layer cache saves disk space with VFS. Docker format preserves the Dockerfile's image health check. For this trusted Dockerfile, `--network=host` shares the outer `rex-test` container's Bridge network namespace so build steps can download dependencies. Run the built image with `podman run --rm --cgroups=disabled --network=none --entrypoint /bin/sh localhost/rex-unraid:dev -ec 'rex version; codex --version'`. Boot the actual PR image in Unraid for tests of SSH, persistent mounts, and Rex session behavior.
 
 ## Connect and check the deployment
 

@@ -56,8 +56,8 @@ COPY --chmod=0644 container/podman.conf /etc/containers/containers.conf.d/50-rex
 COPY --chmod=0644 container/supervise.py /usr/local/lib/rex-unraid/supervise.py
 COPY --chmod=0755 container/init-homebrew /usr/local/lib/rex-unraid/init-homebrew
 COPY --chmod=0440 container/rex-sudoers /etc/sudoers.d/rexuser
-RUN --mount=type=bind,source=container/zshenv,target=/tmp/rex-zshenv \
-    cat /tmp/rex-zshenv >> /etc/zsh/zshenv \
+COPY --chmod=0644 container/zshenv /usr/local/lib/rex-unraid/zshenv
+RUN printf '\n. /usr/local/lib/rex-unraid/zshenv\n' >> /etc/zsh/zshenv \
     && visudo -c
 
 ENV LANG=C.UTF-8 SHELL=/bin/zsh REX_AUTOSTART=0 REX_SERVER=/run/rex/server.sock
