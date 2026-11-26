@@ -1,2 +1,3 @@
 /container/init-homebrew text eol=lf
 /container/zshenv text eol=lf
+/unraid/setup.sh text eol=lf

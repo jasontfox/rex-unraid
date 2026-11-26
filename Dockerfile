@@ -10,11 +10,15 @@ FROM debian:trixie-slim
 RUN test "$(dpkg --print-architecture)" = amd64 \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential ca-certificates curl file git ncurses-bin openssh-server \
-        procps python3 sudo tini util-linux zsh \
+        build-essential ca-certificates crun curl file git libcap2-bin ncurses-bin openssh-server \
+        podman procps python3 slirp4netns sudo tini uidmap util-linux zsh \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/ssh/ssh_host_* \
     && useradd --uid 1000 --gid users --home-dir /home/rexuser --shell /bin/zsh rexuser \
+    && getsubids rexuser && getsubids -g rexuser \
+    && chmod u-s /usr/bin/newuidmap /usr/bin/newgidmap \
+    && setcap cap_setuid=ep /usr/bin/newuidmap \
+    && setcap cap_setgid=ep /usr/bin/newgidmap \
     && install -d -m 0700 -o rexuser -g users /home/rexuser \
     && install -d -m 0700 /var/lib/rex-ssh \
     && install -d -m 0755 /home/linuxbrew /run/rex-auth /workspace /opt/codex
@@ -48,11 +52,12 @@ RUN set -eu; \
     ln -s ../Homebrew/bin/brew "$seed/bin/brew"
 
 COPY --chmod=0644 container/sshd_config /etc/ssh/sshd_config.rex
+COPY --chmod=0644 container/podman.conf /etc/containers/containers.conf.d/50-rex.conf
 COPY --chmod=0644 container/supervise.py /usr/local/lib/rex-unraid/supervise.py
 COPY --chmod=0755 container/init-homebrew /usr/local/lib/rex-unraid/init-homebrew
 COPY --chmod=0440 container/rex-sudoers /etc/sudoers.d/rexuser
-RUN --mount=type=bind,source=container/zshenv,target=/tmp/rex-zshenv \
-    cat /tmp/rex-zshenv >> /etc/zsh/zshenv \
+COPY --chmod=0644 container/zshenv /usr/local/lib/rex-unraid/zshenv
+RUN printf '\n. /usr/local/lib/rex-unraid/zshenv\n' >> /etc/zsh/zshenv \
     && visudo -c
 
 ENV LANG=C.UTF-8 SHELL=/bin/zsh REX_AUTOSTART=0 REX_SERVER=/run/rex/server.sock
