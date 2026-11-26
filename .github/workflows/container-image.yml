@@ -47,14 +47,20 @@ jobs:
             --security-opt "seccomp=$PWD/container/codex-seccomp.json" \
             --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
             --mount "type=bind,src=$workspace,dst=/workspace" \
+            --mount "type=bind,src=$PWD,dst=/src,readonly" \
             --tmpfs /run/user/1000:uid=1000,gid=100,mode=0700 \
             --env XDG_RUNTIME_DIR=/run/user/1000 "$IMAGE" -ec '
               test "$(id -u)" = 1000
               podman --version
-              podman --storage-driver=vfs --cgroup-manager=cgroupfs run \
+              podman --storage-driver=vfs run \
                 --rm --cgroups=disabled --network=none --volume /workspace:/work:rw \
                 docker.io/library/alpine:3.22 sh -ec "echo rootless > /work/probe.txt"
               test "$(cat /workspace/probe.txt)" = rootless
+              cd /src
+              podman --storage-driver=vfs build --network=host --platform linux/amd64 \
+                --tag localhost/rex-unraid:dev .
+              podman --storage-driver=vfs run --rm --cgroups=disabled --network=none \
+                --entrypoint /bin/sh localhost/rex-unraid:dev -ec "rex version; codex --version"
             '
       - name: Publish a pull request preview
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository

@@ -153,12 +153,11 @@ Point the seccomp flag at the profile from the PR, keep the capability flags in 
 
 The system-path exception lets Podman mount a new `/proc` for its nested containers. It removes Docker's default masked and read-only paths for this test container, so use it only on the development instance with trusted code and mounts. Keep the seccomp profile and leave **Privileged** off. [Docker security options](https://docs.docker.com/reference/cli/docker/container/run/#security-opt)
 
-Connect Rex to `ssh://rexuser@<UNRAID_LAN_IP>:2223/run/rex/server.sock` and run the following as `rexuser`. On the fresh test home, configure VFS storage and the cgroupfs manager. VFS requires no FUSE device and uses extra disk space for image layers.
+Connect Rex to `ssh://rexuser@<UNRAID_LAN_IP>:2223/run/rex/server.sock` and run the following as `rexuser`. On the fresh test home, configure VFS storage. VFS requires no FUSE device and uses extra disk space for image layers.
 
 ```sh
 mkdir -p "$HOME/.config/containers"
 printf '[storage]\ndriver = "vfs"\n' > "$HOME/.config/containers/storage.conf"
-printf '[engine]\ncgroup_manager = "cgroupfs"\n' > "$HOME/.config/containers/containers.conf"
 podman info --format '{{.Host.Security.Rootless}} {{.Store.GraphRoot}}'
 
 # Use a directory under $HOME here if you did not map /workspace.

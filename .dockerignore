@@ -6,3 +6,4 @@
 !container/init-homebrew
 !container/rex-sudoers
 !container/zshenv
+!container/podman.conf

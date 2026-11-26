@@ -52,6 +52,7 @@ RUN set -eu; \
     ln -s ../Homebrew/bin/brew "$seed/bin/brew"
 
 COPY --chmod=0644 container/sshd_config /etc/ssh/sshd_config.rex
+COPY --chmod=0644 container/podman.conf /etc/containers/containers.conf.d/50-rex.conf
 COPY --chmod=0644 container/supervise.py /usr/local/lib/rex-unraid/supervise.py
 COPY --chmod=0755 container/init-homebrew /usr/local/lib/rex-unraid/init-homebrew
 COPY --chmod=0440 container/rex-sudoers /etc/sudoers.d/rexuser
