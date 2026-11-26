@@ -145,11 +145,13 @@ Follow [the appdata setup](#prepare-appdata-on-unraid) using `/mnt/<pool>/appdat
 
 For source code, map a separate writable project folder to `/workspace` or clone into `~/src` on the test home mount. Give UID `1000` or GID `100` write access to the folder. Nested containers see paths inside `rex-test`, so a Podman bind mount uses `/workspace` or a path under `$HOME` as its source.
 
-Point the seccomp flag at the profile from the PR, keep the capability flags in the template, and append this to **Extra Parameters** for the rootless runtime directory:
+Point the seccomp flag at the profile from the PR, keep the capability flags in the template, and append these options to **Extra Parameters** on `rex-test`:
 
 ```text
---tmpfs /run/user/1000:uid=1000,gid=100,mode=0700 --env XDG_RUNTIME_DIR=/run/user/1000
+--security-opt systempaths=unconfined --tmpfs /run/user/1000:uid=1000,gid=100,mode=0700 --env XDG_RUNTIME_DIR=/run/user/1000
 ```
+
+The system-path exception lets Podman mount a new `/proc` for its nested containers. It removes Docker's default masked and read-only paths for this test container, so use it only on the development instance with trusted code and mounts. Keep the seccomp profile and leave **Privileged** off. [Docker security options](https://docs.docker.com/reference/cli/docker/container/run/#security-opt)
 
 Connect Rex to `ssh://rexuser@<UNRAID_LAN_IP>:2223/run/rex/server.sock` and run the following as `rexuser`. On the fresh test home, configure VFS storage and the cgroupfs manager. VFS requires no FUSE device and uses extra disk space for image layers.
 
@@ -168,7 +170,7 @@ podman run --rm --cgroups=disabled --network=none \
 cat "$workdir/probe.txt"
 ```
 
-From a checkout inside the test instance, try `podman build --platform linux/amd64 -t localhost/rex-unraid:dev .`. Run the built image with `podman run --rm --cgroups=disabled --network=none --entrypoint /bin/sh localhost/rex-unraid:dev -ec 'rex version; codex --version'`. Boot the actual PR image in Unraid for tests of SSH, persistent mounts, and Rex session behavior.
+From a checkout inside the test instance, try `podman build --network=host --platform linux/amd64 -t localhost/rex-unraid:dev .`. For this trusted Dockerfile, `--network=host` shares the outer `rex-test` container's Bridge network namespace so build steps can download dependencies. Run the built image with `podman run --rm --cgroups=disabled --network=none --entrypoint /bin/sh localhost/rex-unraid:dev -ec 'rex version; codex --version'`. Boot the actual PR image in Unraid for tests of SSH, persistent mounts, and Rex session behavior.
 
 ## Connect and check the deployment
 
