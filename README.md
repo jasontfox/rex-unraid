@@ -32,17 +32,20 @@ sha256sum -c "$archive.sha256" && docker image load -i "$archive"
 
 ### Build and publish with GitHub Actions
 
-The [Container image workflow](.github/workflows/container-image.yml) builds the `linux/amd64` image for pull requests and pushes to `main` that change the image build or workflow. In **Actions → Container image → Run workflow**, choose `main` and select **Publish this build to GitHub Container Registry** when you want to publish. The image is tagged with its full Git commit SHA. The workflow run summary shows the image reference.
+Open pull requests against `main` and wait for the **Build image** check before merging. The [Container image workflow](.github/workflows/container-image.yml) builds the `linux/amd64` image when a PR to `main` opens, changes, or reopens, on every push to `main`, and on manual runs. On a push to `main`, the workflow publishes only when GitHub identifies the built commit as the exact result of a merged PR targeting `main`.
 
-The workflow uses GitHub’s temporary Actions token to publish to `ghcr.io/jasontfox/rex-unraid`. GitHub defaults new container packages to private. Verify the package visibility after the first publish and keep it private for this deployment. [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+Configure `main` branch protection to require a pull request and the **Build image** check, including for administrators. Private repositories need a GitHub plan with branch protection. [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
 
-To use a published build with the local Unraid template, pull it in the Unraid terminal and tag it with the local name in the template’s **Repository** field. Use a GitHub personal access token **(classic)** with `read:packages` when Docker asks for the password. For this revision, copy the commit-specific reference from the run summary and use the `r2` template tag below. [GitHub Container Registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry)
+Image versions use SemVer for this container project. The [VERSION](VERSION) file starts at `0.1.0`. Each first-parent commit after that version change increments the patch number, so a squash merge or merge commit advances it by one. A rebase merge or an unpublished commit can leave gaps. To start a new minor or major release, change `VERSION` in the PR to a version above the current one, such as `0.2.0`. Each published image uses its SemVer tag and includes the Git commit SHA in its OCI metadata. The run summary shows the image reference.
+
+The workflow uses GitHub’s temporary Actions token to publish to `ghcr.io/jasontfox/rex-unraid`. GitHub defaults new container packages to private. Keep this package private. [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+
+To use a published build, copy its image reference from the run summary, pull it in the Unraid terminal, and paste the same reference into the template’s **Repository** field. Use a GitHub personal access token **(classic)** with `read:packages` when Docker asks for the password. [GitHub Container Registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry)
 
 ```sh
-image='ghcr.io/jasontfox/rex-unraid:sha-<full-commit-sha>'
+image='ghcr.io/jasontfox/rex-unraid:0.1.0'
 docker login ghcr.io --username jasontfox
 docker pull "$image"
-docker image tag "$image" rex-unraid:0.1.0-preview.24-codex.0.172.0-r2
 ```
 
 ## Prepare appdata on Unraid
