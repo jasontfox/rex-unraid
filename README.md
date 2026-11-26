@@ -59,7 +59,7 @@ bash unraid/setup.sh
 
 The prompts ask for the image, container name, appdata path, SSH address and port, workspace, and a public key file. You can pass the same settings as options using `bash unraid/setup.sh --help`. If neither the import file nor the installed `authorized_keys` has a key, the script prompts you to paste the contents of a client's `.pub` file. Use `--keys FILE` for unattended setup.
 
-The script installs the seccomp profile and a separate setup template under `/boot/config/plugins/dockerMan/templates-user`. Reruns preserve existing SSH keys and appdata, and import each key at most once. The setup template has a separate filename from the template Unraid saves when you apply a container. Use the LAN IPv4 address for access from other devices. The default `127.0.0.1` keeps SSH on Unraid itself. [Unraid user template storage](https://docs.unraid.net/community-applications/)
+The script installs the seccomp profile and a template for the named instance under `/boot/config/plugins/dockerMan/templates-user`. Reruns preserve existing SSH keys and appdata, import each key at most once, and leave a template saved by the WebGUI in place. Use the LAN IPv4 address for access from other devices. The default `127.0.0.1` keeps SSH on Unraid itself. [Unraid user template storage](https://docs.unraid.net/community-applications/)
 
 Open **Docker → Add Container**, select the template name printed by the script under **User templates**, review the settings, and click **Apply**. Docker Manager pulls the registry image and creates the container.
 
