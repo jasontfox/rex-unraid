@@ -42,6 +42,8 @@ The workflow uses GitHub’s temporary Actions token to publish to `ghcr.io/jaso
 
 To use a published build, copy its image reference from the run summary, pull it in the Unraid terminal, and paste the same reference into the template’s **Repository** field. Use a GitHub personal access token **(classic)** with `read:packages` when Docker asks for the password. [GitHub Container Registry authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry)
 
+Use `ghcr.io/jasontfox/rex-unraid:latest` in **Repository** to follow releases when Unraid checks for updates. CI updates this tag after publishing the SemVer image for the current tip of `main`. Use a full SemVer tag to pin a release or roll back.
+
 ```sh
 image='ghcr.io/jasontfox/rex-unraid:0.1.0'
 docker login ghcr.io --username jasontfox

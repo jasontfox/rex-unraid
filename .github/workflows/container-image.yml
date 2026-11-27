@@ -37,6 +37,8 @@ jobs:
     timeout-minutes: 20
     concurrency:
       group: container-release-${{ github.sha }}
+    outputs:
+      image: ${{ steps.release.outputs.image }}
     permissions:
       contents: read
       packages: write
@@ -71,6 +73,7 @@ jobs:
             echo 'Main image built. This commit did not match a merged pull request.' >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Publish to GitHub Container Registry
+        id: release
         if: steps.merge.outputs.number != ''
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -85,7 +88,38 @@ jobs:
               exit 1
             fi
             printf 'Image `%s` was already published for this commit.\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          else
+            docker push "$IMAGE"
+            printf 'Published `%s`\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          printf 'image=%s\n' "$IMAGE" >> "$GITHUB_OUTPUT"
+
+  latest:
+    name: Update the latest image tag
+    needs: publish
+    if: needs.publish.outputs.image != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: container-release-latest
+      queue: max
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Promote the published image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ needs.publish.outputs.image }}
+        run: |
+          main_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$GITHUB_SHA" != "$main_sha" ]]; then
+            echo 'Skipped latest because this build is no longer the tip of main.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          docker push "$IMAGE"
-          printf 'Published `%s`\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          latest="${IMAGE%:*}:latest"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$IMAGE"
+          docker tag "$IMAGE" "$latest"
+          docker push "$latest"
+          printf 'Published `%s` from `%s`.\n' "$latest" "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
