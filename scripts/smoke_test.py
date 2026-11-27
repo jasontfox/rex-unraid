@@ -124,6 +124,13 @@ class Smoke:
         identity = run("sudo", "cat", str(self.home / "smoke-uid"))
         if identity.splitlines() != ["1000", "rexuser"]:
             raise RuntimeError(f"Unexpected Rex identity: {identity}")
+        run(*self.remote, "run", "-s", self.session, "--wait", "--shell=none", "--",
+            "/bin/zsh", "-c",
+            'test "$(command -v go)" = /usr/local/bin/go && '
+            'test "$(command -v gofmt)" = /usr/local/bin/gofmt && '
+            'test "$(go env GOPATH)" = "$HOME/go" && '
+            '[[ ":$PATH:" == *":$HOME/go/bin:"* ]] && go version',
+            log="rex-ssh.log")
 
     def cleanup(self):
         if self.ssh_config is not None:

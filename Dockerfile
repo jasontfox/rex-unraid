@@ -4,6 +4,8 @@ ADD --checksum=sha256:eb9dceba9fc6eddbe93c421a41cd3ddb5959521ba52bfb7055e4614f10
     https://blob.superlogical.com/download/rex/preview/ad122d66146b2d239c0f5f3c297f8318d49b29c9/rex-linux-amd64.tar.gz /rex.tar.gz
 ADD --checksum=sha256:63e3b00065ed7f62166d0522e17f663cb866a31d80d03e63365482ed34a1d991 \
     https://github.com/openai/codex/releases/download/rust-v0.172.0/codex-package-x86_64-unknown-linux-musl.tar.gz /codex.tar.gz
+ADD --checksum=sha256:7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840 \
+    https://go.dev/dl/go1.27.4.linux-amd64.tar.gz /go.tar.gz
 
 FROM debian:trixie-slim
 
@@ -22,6 +24,11 @@ RUN test "$(dpkg --print-architecture)" = amd64 \
     && install -d -m 0700 -o rexuser -g users /home/rexuser \
     && install -d -m 0700 /var/lib/rex-ssh \
     && install -d -m 0755 /home/linuxbrew /run/rex-auth /workspace /opt/codex
+
+RUN --mount=type=bind,from=releases,source=/go.tar.gz,target=/tmp/go.tar.gz \
+    tar --no-same-owner -xzf /tmp/go.tar.gz -C /usr/local \
+    && ln -s ../go/bin/go ../go/bin/gofmt /usr/local/bin/ \
+    && test "$(go version)" = 'go version go1.27.4 linux/amd64'
 
 RUN --mount=type=bind,from=releases,source=/rex.tar.gz,target=/tmp/rex.tar.gz \
     --mount=type=bind,from=releases,source=/codex.tar.gz,target=/tmp/codex.tar.gz \

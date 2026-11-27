@@ -198,6 +198,12 @@ Run `brew install <formula>` as `rexuser`. The first start seeds Homebrew at `/h
 
 Use `sudo apt-get update` and `sudo apt-get install <package>` for Debian packages. Packages installed this way live in the container’s writable layer and are lost when it is recreated. Add Debian packages you need in every replacement to the Dockerfile.
 
+### Go tools
+
+The image includes Go 1.27.4. Both `go` and `gofmt` are available system-wide through `/usr/local/bin`. Run `go install <module>@<version>` as `rexuser` to install a personal tool. By default it goes in `$HOME/go/bin`, which Rex zsh sessions add to `PATH` and which persists with the home mount.
+
+For a tool shared across users inside the running container, use `sudo env GOBIN=/usr/local/bin go install <module>@<version>`. Shared tools installed this way live in the container’s writable layer. Add tools required on every deployment to the image build. [Go installation](https://go.dev/doc/install)
+
 ## Update and roll back
 
 Stop the container and back up its appdata before changing versions. Save the old image archive outside Docker’s image storage. For the first upgrade to the Homebrew image, create the `brew` appdata directory, add its mapping to `/home/linuxbrew`, and remove the old `no-new-privileges=true` option if present. Load the new tag and apply it through **Docker → Edit**. A rollback uses the old tag, deployment settings, and corresponding appdata backup. A restart ends running shell processes. For changes to stop timing, verify a WebGUI stop with an active Rex session since Unraid applies its own Docker stop timeout. [Unraid shutdown timeouts](https://docs.unraid.net/unraid-os/troubleshooting/common-issues/unclean-shutdowns/#configuring-shutdown-timeouts)
