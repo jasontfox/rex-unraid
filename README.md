@@ -32,7 +32,22 @@ sha256sum -c "$archive.sha256" && docker image load -i "$archive"
 
 ### Build and publish with GitHub Actions
 
-Open pull requests against `main` and wait for the **Build image** check before merging. The [Container image workflow](.github/workflows/container-image.yml) builds the `linux/amd64` image when a PR to `main` opens, changes, or reopens, on every push to `main`, and on manual runs. On a push to `main`, the workflow publishes only when GitHub identifies the built commit as the exact result of a merged PR targeting `main`.
+Open pull requests against `main` and wait for the **Build image** check.
+The [Container image workflow](.github/workflows/container-image.yml)
+builds the amd64 image, starts a disposable container, and verifies Rex
+over SSH as `rexuser`. Same-repository PRs receive a comment with the
+test results and a link to the JUnit and diagnostics artifacts.
+For a pushed branch, run the same suite from a checkout without Docker:
+
+```sh
+gh workflow run container-image.yml --ref "$(git branch --show-current)"
+gh run watch <run-id> --exit-status
+```
+
+After a merge, the workflow runs the suite against the exact image it
+will publish. A failed suite blocks the SemVer push and the `:latest`
+update. GitHub must identify the tested commit as the result of a PR
+merged to `main`.
 
 Configure `main` branch protection to require a pull request and the **Build image** check, including for administrators. Private repositories need a GitHub plan with branch protection. [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
 
