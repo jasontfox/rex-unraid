@@ -1,6 +1,7 @@
 
-# Add Homebrew for rexuser before zsh reads the user's startup files.
+# Set up tool paths before zsh reads rexuser's startup files.
 if (( EUID == 1000 )); then
     typeset -U path
     path=(/home/linuxbrew/.linuxbrew/bin /home/linuxbrew/.linuxbrew/sbin "$path[@]")
+    path+=("${GOBIN:-${${GOPATH:-$HOME/go}%%:*}/bin}")
 fi
