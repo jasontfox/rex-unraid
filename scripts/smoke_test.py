@@ -1,5 +1,6 @@
-"""Advisory Docker and Rex smoke tests for a disposable Linux CI runner."""
+"""Docker and Rex smoke tests for a disposable Linux CI runner."""
 
+import argparse
 import hashlib
 import io
 import json
@@ -40,16 +41,18 @@ def wait_for(check, description, seconds=30):
 
 
 class Smoke:
-    def __init__(self, temp):
+    def __init__(self, temp, image, labels):
         self.temp = temp
         self.home = temp / "home"
         self.name = "rex-smoke-" + uuid.uuid4().hex[:12]
-        self.image = f"{self.name}:pilot"
+        self.image = image or f"{self.name}:smoke"
+        self.labels = labels
         self.started = False
         self.ssh_config = None
 
     def build(self):
-        run("docker", "build", "--platform", "linux/amd64", "-t", self.image, ".",
+        labels = [arg for label in self.labels for arg in ("--label", label)]
+        run("docker", "build", "--platform", "linux/amd64", "-t", self.image, *labels, ".",
             timeout=600, log="build.log")
         self.image_id = run("docker", "image", "inspect", "--format", "{{.Id}}", self.image)
 
@@ -136,13 +139,17 @@ class Smoke:
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--image")
+    parser.add_argument("--label", action="append", default=[])
+    args = parser.parse_args()
     DIAGNOSTICS.mkdir(parents=True, exist_ok=True)
     suite = ET.Element("testsuite", name="container-smoke")
     failed = None
     with tempfile.TemporaryDirectory(prefix="rex-smoke-") as folder:
         # The container uses UID 1000, which need not match the GitHub runner UID.
         Path(folder).chmod(0o755)
-        smoke = Smoke(Path(folder))
+        smoke = Smoke(Path(folder), args.image, args.label)
         try:
             for name, check in (
                 ("docker_build", smoke.build), ("container_start", smoke.start),
@@ -166,6 +173,8 @@ def main():
                 ET.ElementTree(suite).write(REPORT / "junit.xml", encoding="utf-8", xml_declaration=True)
         finally:
             smoke.cleanup()
+    if failed is None:
+        (REPORT / "image-id").write_text(smoke.image_id + "\n")
     return int(failed is not None)
 
 
