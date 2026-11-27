@@ -10,8 +10,12 @@ FROM debian:trixie-slim
 RUN test "$(dpkg --print-architecture)" = amd64 \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential ca-certificates curl file git ncurses-bin openssh-server \
+        bubblewrap build-essential ca-certificates curl file git ncurses-bin openssh-server \
         procps python3 sudo tini util-linux zsh \
+    && /usr/bin/bwrap --version \
+    && bwrap_help="$(/usr/bin/bwrap --help 2>&1)" \
+    && printf '%s\n' "$bwrap_help" | grep -Fq -- '--as-pid-1' \
+    && printf '%s\n' "$bwrap_help" | grep -Fq -- '--perms' \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/ssh/ssh_host_* \
     && useradd --uid 1000 --gid users --home-dir /home/rexuser --shell /bin/zsh rexuser \
