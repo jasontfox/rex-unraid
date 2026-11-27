@@ -76,7 +76,7 @@ def render(root, run):
         if run["event"] == "workflow_dispatch" and tested != run["head_sha"]:
             raise ValueError("manual checkout does not match its dispatched revision")
         body.append(f"Tested checkout: `{tested}`")
-        xml = bounded(root / "smoke-results/junit.xml", 64 * 1024).decode("utf-8")
+        xml = bounded(root / "junit.xml", 64 * 1024).decode("utf-8")
         if "<!DOCTYPE" in xml or "<!ENTITY" in xml:
             raise ValueError("XML declarations are forbidden")
         suite = ET.fromstring(xml)
@@ -94,7 +94,7 @@ def render(root, run):
         if case.find("failure") is not None or case.find("error") is not None:
             outcome = "failed"
             try:
-                excerpt = bounded(root / "smoke-results/diagnostics" / LOGS[name], 1500,
+                excerpt = bounded(root / "diagnostics" / LOGS[name], 1500,
                                   tail=True).decode(errors="replace")
                 excerpt = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", "", excerpt)
                 diagnostics.append(f"<details><summary>{name} diagnostics</summary>\n\n"
