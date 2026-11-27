@@ -123,11 +123,18 @@ class Smoke:
             raise RuntimeError(f"Unexpected Rex identity: {identity}")
 
     def bubblewrap(self):
+        probe = """codex sandbox -P :read-only -C /workspace -- /bin/sh -c 'id -u; echo system-bwrap-ok'"""
+        control = subprocess.run(
+            (*self.remote, "run", "-s", self.session, "--wait", "--shell=none", "--",
+             "/bin/sh", "-c", probe + ' > "$HOME/smoke-control" 2>&1'),
+            timeout=45, capture_output=True, text=True,
+        )
+        control_output = run("sudo", "cat", str(self.home / "smoke-control"))
+        (DIAGNOSTICS / "codex-untraced.log").write_text(control_output + "\n" + control.stderr)
         command = r'''
 echo $$ > "$HOME/smoke-pid"
 while [ ! -f "$HOME/smoke-go" ]; do sleep 0.2; done
-codex sandbox -P :read-only -C /workspace -- /bin/sh -c 'id -u; echo system-bwrap-ok' > "$HOME/smoke-output" 2>&1
-'''
+''' + probe + ' > "$HOME/smoke-output" 2>&1'
         with (DIAGNOSTICS / "rex-codex.log").open("wb") as output:
             args = (*self.remote, "run", "-s", self.session, "--wait", "--shell=none", "--",
                     "/bin/sh", "-c", command)
@@ -161,11 +168,16 @@ codex sandbox -P :read-only -C /workspace -- /bin/sh -c 'id -u; echo system-bwra
                     result = subprocess.run(("sudo", "cat", str(self.home / "smoke-output")),
                                             capture_output=True, text=True, timeout=10)
                     (DIAGNOSTICS / "codex.log").write_text(result.stdout + result.stderr)
-        if status or not {"1000", "system-bwrap-ok"} <= set(result.stdout.splitlines()):
-            raise RuntimeError(f"Codex probe failed (exit {status}); inspect codex.log")
-        if not any('execve("/usr/bin/bwrap",' in line and '"--unshare-user"' in line
+        if not any('execve("/usr/bin/bwrap",' in line and '"--apply-seccomp-then-exec"' in line
                    and re.search(r"= 0\s*$", line) for line in trace.read_text().splitlines()):
             raise RuntimeError("No successful system Bubblewrap sandbox execution in trace")
+        expected = {"1000", "system-bwrap-ok"}
+        if control.returncode or status or not all(
+            expected <= set(output.splitlines()) for output in (control_output, result.stdout)
+        ):
+            raise RuntimeError(
+                f"Codex probe failed (untraced exit {control.returncode}, traced exit {status})"
+            )
 
     def host_pid(self, inner_pid):
         for pid in run("docker", "top", self.name, "-eo", "pid").splitlines()[1:]:
