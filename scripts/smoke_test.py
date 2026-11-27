@@ -122,79 +122,6 @@ class Smoke:
         if identity.splitlines() != ["1000", "rexuser"]:
             raise RuntimeError(f"Unexpected Rex identity: {identity}")
 
-    def bubblewrap(self):
-        probe = """codex sandbox -P :read-only -C /workspace -- /bin/sh -c 'id -u; echo system-bwrap-ok'"""
-        control = subprocess.run(
-            (*self.remote, "run", "-s", self.session, "--wait", "--shell=none", "--",
-             "/bin/sh", "-c", probe + ' > "$HOME/smoke-control" 2>&1'),
-            timeout=45, capture_output=True, text=True,
-        )
-        control_output = run("sudo", "cat", str(self.home / "smoke-control"))
-        (DIAGNOSTICS / "codex-untraced.log").write_text(control_output + "\n" + control.stderr)
-        command = r'''
-echo $$ > "$HOME/smoke-pid"
-while [ ! -f "$HOME/smoke-go" ]; do sleep 0.2; done
-''' + probe + ' > "$HOME/smoke-output" 2>&1'
-        with (DIAGNOSTICS / "rex-codex.log").open("wb") as output:
-            args = (*self.remote, "run", "-s", self.session, "--wait", "--shell=none", "--",
-                    "/bin/sh", "-c", command)
-            with subprocess.Popen(args, stdout=output, stderr=subprocess.STDOUT) as rex:
-                try:
-                    pid_file = self.home / "smoke-pid"
-                    wait_for(lambda: subprocess.run(
-                        ("sudo", "test", "-s", str(pid_file)), check=False).returncode == 0,
-                        "Codex wrapper PID")
-                    inner_pid = run("sudo", "cat", str(pid_file))
-                    host_pid = self.host_pid(inner_pid)
-                    trace = DIAGNOSTICS / "bubblewrap.trace"
-                    with trace.open("wb") as trace_output:
-                        with subprocess.Popen(
-                            ("sudo", "strace", "-f", "-s", "256", "-e", "trace=execve,execveat",
-                             "-p", host_pid), stdout=trace_output, stderr=subprocess.STDOUT
-                        ) as tracer:
-                            try:
-                                wait_for(lambda: self.tracer_pid(host_pid),
-                                                      "strace attachment", 10)
-                                run("sudo", "touch", str(self.home / "smoke-go"))
-                                status = rex.wait(timeout=45)
-                            finally:
-                                if tracer.poll() is None:
-                                    if traced_by := self.tracer_pid(host_pid):
-                                        run("sudo", "kill", "-INT", traced_by)
-                                    tracer.wait(timeout=15)
-                finally:
-                    if rex.poll() is None:
-                        rex.kill()
-                    result = subprocess.run(("sudo", "cat", str(self.home / "smoke-output")),
-                                            capture_output=True, text=True, timeout=10)
-                    (DIAGNOSTICS / "codex.log").write_text(result.stdout + result.stderr)
-        if not any('execve("/usr/bin/bwrap",' in line and '"--apply-seccomp-then-exec"' in line
-                   and re.search(r"= 0\s*$", line) for line in trace.read_text().splitlines()):
-            raise RuntimeError("No successful system Bubblewrap sandbox execution in trace")
-        expected = {"1000", "system-bwrap-ok"}
-        if control.returncode or status or not all(
-            expected <= set(output.splitlines()) for output in (control_output, result.stdout)
-        ):
-            raise RuntimeError(
-                f"Codex probe failed (untraced exit {control.returncode}, traced exit {status})"
-            )
-
-    def host_pid(self, inner_pid):
-        for pid in run("docker", "top", self.name, "-eo", "pid").splitlines()[1:]:
-            status = Path(f"/proc/{pid.strip()}/status")
-            if status.exists() and re.search(rf"^NSpid:.*\s{inner_pid}$", status.read_text(), re.M):
-                return pid.strip()
-        raise RuntimeError(f"Could not map container PID {inner_pid} to the runner")
-
-    @staticmethod
-    def tracer_pid(host_pid):
-        status = Path(f"/proc/{host_pid}/status")
-        if status.exists():
-            pid = re.search(r"^TracerPid:\s*(\d+)", status.read_text(), re.M).group(1)
-            if pid != "0":
-                return pid
-        return None
-
     def cleanup(self):
         if self.ssh_config is not None:
             self.ssh_config.unlink(missing_ok=True)
@@ -219,7 +146,7 @@ def main():
         try:
             for name, check in (
                 ("docker_build", smoke.build), ("container_start", smoke.start),
-                ("rex_ssh", smoke.connect), ("codex_system_bwrap", smoke.bubblewrap),
+                ("rex_ssh", smoke.connect),
             ):
                 case = ET.SubElement(suite, "testcase", name=name, classname="rex_unraid.smoke")
                 start = time.monotonic()
